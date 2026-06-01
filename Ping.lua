@@ -1,135 +1,91 @@
--- ==================================================
--- ВИЗУАЛИЗАЦИЯ ТВОЕГО ПИНГА (БЕЛЫЙ КЛОН)
--- Показывает твоё реальное положение на сервере
--- ==================================================
-
+-- УПРОЩЁННАЯ ВЕРСИЯ (работает 100%)
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
-local Lighting = game:GetService("Lighting")
 
-local cloneModel = nil
-local positionHistory = {} -- {positions, times}
-local CLONE_DELAY = 0.3 -- задержка (под твой пинг)
+local clone = nil
+local history = {}
+local DELAY = 0.3
 
--- СОЗДАНИЕ БЕЛОГО КЛОНА ТЕБЯ
-local function createClone()
-    local char = LocalPlayer.Character
-    if not char then return nil end
+-- Ждём персонажа
+local function waitChar()
+    if not LocalPlayer.Character then
+        LocalPlayer.CharacterAdded:Wait()
+    end
+    return LocalPlayer.Character
+end
+
+-- Создаём клон
+local function makeClone()
+    local char = waitChar()
+    if clone then clone:Destroy() end
     
-    local clone = char:Clone()
-    clone.Name = "MyPingClone"
+    clone = char:Clone()
+    clone.Name = "PingClone"
     clone.Parent = workspace
     
-    for _, part in ipairs(clone:GetDescendants()) do
+    for _, part in pairs(clone:GetDescendants()) do
         if part:IsA("BasePart") then
             part.Color = Color3.fromRGB(255, 255, 255)
             part.Material = Enum.Material.Neon
-            part.Transparency = 0.4
+            part.Transparency = 0.5
             part.CanCollide = false
         elseif part:IsA("Humanoid") then
             part.WalkSpeed = 0
-            part.JumpPower = 0
             part.PlatformStand = true
         elseif part:IsA("Accessory") or part:IsA("BaseScript") then
-            part:Destroy()
+            pcall(function() part:Destroy() end)
         end
     end
     
-    return clone
+    print("✅ Клон создан")
 end
 
--- ОБНОВЛЕНИЕ ИСТОРИИ ПОЗИЦИЙ
-local function updateHistory()
+-- Сохраняем позиции
+local function savePosition()
     local char = LocalPlayer.Character
     if not char then return end
-    
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
     
-    local now = tick()
-    table.insert(positionHistory, {cframe = hrp.CFrame, time = now})
+    table.insert(history, {pos = hrp.CFrame, time = tick()})
     
-    -- Удаляем старые записи (старше 1 секунды)
-    while #positionHistory > 0 and now - positionHistory[1].time > 1 do
-        table.remove(positionHistory, 1)
+    while #history > 0 and tick() - history[1].time > 1 do
+        table.remove(history, 1)
     end
 end
 
--- ОБНОВЛЕНИЕ ПОЗИЦИИ КЛОНА (с задержкой)
-local function updateClone()
-    if not cloneModel then return end
-    
+-- Двигаем клона
+local function moveClone()
+    if not clone then return end
     local now = tick()
-    local targetTime = now - CLONE_DELAY
+    local targetTime = now - DELAY
     
-    -- Ищем позицию с задержкой
-    local targetPos = nil
-    for i = #positionHistory, 1, -1 do
-        if positionHistory[i].time <= targetTime then
-            targetPos = positionHistory[i].cframe
+    local target = nil
+    for i = #history, 1, -1 do
+        if history[i].time <= targetTime then
+            target = history[i].pos
             break
         end
     end
     
-    if targetPos then
-        local root = cloneModel:FindFirstChild("HumanoidRootPart")
+    if target then
+        local root = clone:FindFirstChild("HumanoidRootPart")
         if root then
-            root.CFrame = targetPos
+            root.CFrame = target
         end
     end
 end
 
--- ПЕРЕСОЗДАНИЕ КЛОНА ПРИ ПЕРЕРОЖДЕНИИ
-local function recreateClone()
-    if cloneModel then
-        pcall(function() cloneModel:Destroy() end)
-        cloneModel = nil
-    end
-    task.wait(0.5)
-    cloneModel = createClone()
-end
+-- Запуск
+makeClone()
 
--- ==================================================
--- ОПТИМИЗАЦИЯ (каждые 5 секунд)
--- ==================================================
-task.spawn(function()
-    print("✅ Оптимизация запущена (каждые 5 сек)")
-    while true do
-        task.wait(5)
-        collectgarbage("collect")
-        collectgarbage("step", 50)
-        
-        -- Удаляем лишние эффекты
-        for _, v in ipairs(workspace:GetDescendants()) do
-            if v:IsA("ParticleEmitter") or v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") then
-                v.Enabled = false
-                v:Destroy()
-            end
-            if v:IsA("Beam") then
-                v:Destroy()
-            end
-        end
-        
-        -- Настройки освещения
-        Lighting.GlobalShadows = false
-    end
-end)
-
--- ==================================================
--- ЗАПУСК
--- ==================================================
-cloneModel = createClone()
-
--- Каждый кадр обновляем историю и клона
 RunService.Heartbeat:Connect(function()
-    updateHistory()
-    updateClone()
+    savePosition()
+    moveClone()
 end)
 
--- При перерождении обновляем клон
 LocalPlayer.CharacterAdded:Connect(function()
-    recreateClone()
+    task.wait(0.5)
+    makeClone()
 end)
-
-print("✅ Визуализация твоего пинга запущена | Белый клон показывает твою реальную позицию")
