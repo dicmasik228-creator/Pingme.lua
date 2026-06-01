@@ -1,9 +1,9 @@
--- УПРОЩЁННАЯ ВЕРСИЯ (работает 100%)
+-- ПРОСТОЙ ТЕСТ 2 (работает везде)
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 
-local clone = nil
+local marker = nil
 local history = {}
 local DELAY = 0.3
 
@@ -15,77 +15,68 @@ local function waitChar()
     return LocalPlayer.Character
 end
 
--- Создаём клон
-local function makeClone()
-    local char = waitChar()
-    if clone then clone:Destroy() end
+-- Создаём простую сферу вместо клона
+local function createMarker()
+    if marker then marker:Destroy() end
     
-    clone = char:Clone()
-    clone.Name = "PingClone"
-    clone.Parent = workspace
+    marker = Instance.new("Part")
+    marker.Name = "PingMarker"
+    marker.Size = Vector3.new(2, 2, 2)
+    marker.Shape = Enum.PartType.Ball
+    marker.Color = Color3.fromRGB(255, 255, 255)
+    marker.Material = Enum.Material.Neon
+    marker.Transparency = 0.3
+    marker.CanCollide = false
+    marker.Parent = workspace
     
-    for _, part in pairs(clone:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.Color = Color3.fromRGB(255, 255, 255)
-            part.Material = Enum.Material.Neon
-            part.Transparency = 0.5
-            part.CanCollide = false
-        elseif part:IsA("Humanoid") then
-            part.WalkSpeed = 0
-            part.PlatformStand = true
-        elseif part:IsA("Accessory") or part:IsA("BaseScript") then
-            pcall(function() part:Destroy() end)
-        end
-    end
-    
-    print("✅ Клон создан")
+    print("✅ Маркер создан (белая сфера)")
 end
 
--- Сохраняем позиции
+-- Сохраняем позицию
 local function savePosition()
     local char = LocalPlayer.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
     
-    table.insert(history, {pos = hrp.CFrame, time = tick()})
+    table.insert(history, {pos = hrp.Position, time = tick()})
     
     while #history > 0 and tick() - history[1].time > 1 do
         table.remove(history, 1)
     end
 end
 
--- Двигаем клона
-local function moveClone()
-    if not clone then return end
+-- Двигаем маркер
+local function moveMarker()
+    if not marker then return end
     local now = tick()
     local targetTime = now - DELAY
     
-    local target = nil
+    local targetPos = nil
     for i = #history, 1, -1 do
         if history[i].time <= targetTime then
-            target = history[i].pos
+            targetPos = history[i].pos
             break
         end
     end
     
-    if target then
-        local root = clone:FindFirstChild("HumanoidRootPart")
-        if root then
-            root.CFrame = target
-        end
+    if targetPos then
+        marker.Position = targetPos
     end
 end
 
 -- Запуск
-makeClone()
+waitChar()
+createMarker()
 
 RunService.Heartbeat:Connect(function()
     savePosition()
-    moveClone()
+    moveMarker()
 end)
 
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(0.5)
-    makeClone()
+    createMarker()
 end)
+
+print("✅ Визуализация пинга запущена | Белая сфера показывает твою реальную позицию")
